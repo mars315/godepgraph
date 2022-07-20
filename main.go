@@ -20,6 +20,7 @@ var (
 	}
 	ignoredPrefixes []string
 	onlyPrefixes    []string
+	trimPath        []string
 
 	ignoreStdlib   = flag.Bool("nostdlib", false, "ignore packages in the Go standard library")
 	ignoreVendor   = flag.Bool("novendor", false, "ignore packages in the vendor directory")
@@ -32,6 +33,7 @@ var (
 	horizontal     = flag.Bool("horizontal", false, "lay out the dependency graph horizontally instead of vertically")
 	withTests      = flag.Bool("withtests", false, "include test packages")
 	maxLevel       = flag.Int("maxlevel", 256, "max level of go dependency graph")
+	trim           = flag.String("trim", "", "trim package path")
 
 	buildTags    []string
 	buildContext = build.Default
@@ -70,6 +72,10 @@ func main() {
 			ignored[p] = true
 		}
 	}
+	if *trim != "" {
+		trimPath = strings.Split(*trim, ",")
+	}
+
 	if *tagList != "" {
 		buildTags = strings.Split(*tagList, ",")
 	}
@@ -125,7 +131,7 @@ edge [arrowsize="0.5"]
 			color = "paleturquoise"
 		}
 
-		fmt.Printf("%s [label=\"%s\" color=\"%s\" URL=\"%s\" target=\"_blank\"];\n", pkgId, pkgName, color, pkgDocsURL(pkgName))
+		fmt.Printf("%s [label=\"%s\" color=\"%s\" URL=\"%s\" target=\"_blank\"];\n", trimPackage(pkgId), trimPackage(pkgName), color, pkgDocsURL(pkgName))
 
 		// Don't render imports from packages in Goroot
 		if pkg.Goroot && !*withGoroot {
@@ -139,7 +145,7 @@ edge [arrowsize="0.5"]
 			}
 
 			impId := getId(imp)
-			fmt.Printf("%s -> %s;\n", pkgId, impId)
+			fmt.Printf("%s -> %s;\n", trimPackage(pkgId), trimPackage(impId))
 		}
 	}
 	fmt.Println("}")
@@ -245,6 +251,14 @@ func isIgnored(pkg *build.Package) bool {
 		return true
 	}
 	return ignored[normalizeVendor(pkg.ImportPath)] || (pkg.Goroot && *ignoreStdlib) || hasPrefixes(normalizeVendor(pkg.ImportPath), ignoredPrefixes)
+}
+
+func trimPackage(pkgName string) string {
+	for _, trimPkg := range trimPath {
+		pkgName = strings.ReplaceAll(pkgName, trimPkg, "")
+	}
+
+	return pkgName
 }
 
 func hasBuildErrors(pkg *build.Package) bool {
